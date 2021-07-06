@@ -3,7 +3,7 @@ import numpy as np
 import os
 import sys
 import tensorflow as tf
-import datetime
+from datetime import datetime
 from sklearn.model_selection import train_test_split
 
 EPOCHS = 10
@@ -11,7 +11,6 @@ IMG_WIDTH = 30
 IMG_HEIGHT = 30
 NUM_CATEGORIES = 43
 TEST_SIZE = 0.4
-
 
 # path to data for second argument of program run 
 # 
@@ -25,30 +24,29 @@ def main():
     # Get image arrays and labels for all image files
     images, labels = load_data(sys.argv[1])
     
-    # Split data into training and testing sets
+    # converting vector of integer to binary class matrix
     labels = tf.keras.utils.to_categorical(labels)
-
-    print("Labels after categorical transf", labels.shape)
-
+    
+    # Split data into training and testing sets
     x_train, x_test, y_train, y_test = train_test_split(
         np.array(images), np.array(labels), test_size=TEST_SIZE
     )
-    # print("All shapes", x_train.shape, x_test.shape, y_train.shape, y_test.shape)
 
-    # Get a compiled neural network
+    # Get a compiled neural network. THE MODEL
     model = get_model()
 
-    # Fit model on training data
-     # create logs directory
-    log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    # create logs FIT directory
+    log_dir = "logs/fit/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    # a callback for datetime directory
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
 
-    history = model.fit(x_train, y_train, epochs=EPOCHS,validation_data=(x_test, y_test), callbacks=[tensorboard_callback])
+    # Fit model on training data
+    model.fit(x_train, y_train, epochs=EPOCHS,validation_data=(x_test, y_test), callbacks=[tensorboard_callback])
 
-    
     # # Evaluate neural network performance
     print("start evaluation on test data...")
-    model.evaluate(x_test,  y_test, verbose=2)
+    model.evaluate(x_test, y_test, verbose=2)
 
     # Save model to file
     if len(sys.argv) == 3:
@@ -56,8 +54,11 @@ def main():
         model.save(filename)
         print(f"Model saved to {filename}.")
 
-   
-    # file_writer = tf.summary.FileWriter('/path/to/logs', sess.graph)
+    # predictions
+    predictions = model.predict(x_test, verbose=1)
+    for i in range(10):
+        print("Prediction guess =", np.argmax(predictions[i]),"    probabality = ", max(predictions[i]))
+        print("Label   category =", np.argmax(y_test[i]))
 
 
 def load_data(data_dir):
@@ -79,35 +80,26 @@ def load_data(data_dir):
     """
     images = []
     labels = []
-
     for dir in os.listdir(data_dir):
         # get path and filename
         if dir[0] != ".":
             path = os.path.join(data_dir, dir)
             category = path.split(os.sep)[-1:]
             filename = os.listdir(path)
-            
+    
             # get img and scale it to 30,30
             for fname in filename:
                 filepath = os.path.join(path,fname)
-                
                 img = cv2.imread(filepath)
-                
                 if img is None:
                     sys.exit("Could not read the image.")
-                
                 res = cv2.resize(img,(IMG_HEIGHT,IMG_WIDTH),interpolation = cv2.INTER_AREA)
                 
                 # add to image list and category list
                 images.append(res)
                 labels.append(int(category[0]))
-
-    # print("NumIng", len(images),"NumLab", len(labels))
-    # print("Img shape", images[0].shape)
-    # print("Labels types: ", type(labels[0]))
-   
+                
     return (images,labels)
-
 
 def get_model():
     """
@@ -116,39 +108,24 @@ def get_model():
     The output layer should have `NUM_CATEGORIES` units, one for each category.
     """
     model = tf.keras.models.Sequential()
-
     model.add(tf.keras.layers.Conv2D(
         16,(3,3),activation="relu",input_shape=(IMG_WIDTH,IMG_HEIGHT,3)
     ))
     model.add(tf.keras.layers.MaxPooling2D(pool_size=(2,2)))
-
     model.add(tf.keras.layers.Conv2D(64,(3,3),activation = "relu"))
     model.add(tf.keras.layers.MaxPooling2D(pool_size=(2,2)))
-
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dense(256, activation="relu"))
+    model.add(tf.keras.layers.Dense(512, activation="relu"))
     model.add(tf.keras.layers.Dropout(0.2))
     model.add(tf.keras.layers.Dense(NUM_CATEGORIES, activation="softmax"))
-    
     model.compile(
         optimizer="adam",
         loss="categorical_crossentropy",
         metrics=["accuracy"]
     )
-
     model.summary()
-
     return model
-
-
-def accuracy(predictions,labels):
-    '''
-    Accuracy of a given set of predictions of size (N x n_classes) and
-    labels of size (N x n_classes)
-    '''
-    return np.sum(np.argmax(predictions,axis=1)==np.argmax(labels,axis=1))*100.0/labels.shape[0]
-
-
 
 
 if __name__ == "__main__":
